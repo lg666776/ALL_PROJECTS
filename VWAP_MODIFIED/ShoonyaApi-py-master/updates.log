@@ -1,0 +1,12 @@
+2023-07-17 10:54:04,802 - Using proactor: IocpProactor
+2023-07-17 10:54:04,836 - connecting to wss://api.shoonya.com/NorenWSTP/
+2023-07-17 10:54:05,178 - Websocket connected
+2023-07-17 10:54:05,180 - {"t": "c", "uid": "FA87766", "actid": "FA87766", "susertoken": "0cca79db1bcb71caebaf78a866ee3fe9dbe67983ea67552e2765d74884dc2680", "source": "API"}
+2023-07-17 10:54:05,354 - LP value: 3538.80
+2023-07-17 10:54:05,388 - Final LP value: 3538.80
+2023-07-17 10:54:34,794 - Using proactor: IocpProactor
+2023-07-17 10:54:34,798 - connecting to wss://api.shoonya.com/NorenWSTP/
+2023-07-17 10:54:35,089 - Websocket connected
+2023-07-17 10:54:35,091 - {"t": "c", "uid": "FA87766", "actid": "FA87766", "susertoken": "deca22617179604f1dd553cd5bcd41e1a831f22f4a5b460297455a367eb06547", "source": "API"}
+2023-07-17 10:54:35,335 - LP value: 3539.75
+2023-07-17 10:54:35,365 - Final LP value: 3539.75

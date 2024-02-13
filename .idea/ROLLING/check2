@@ -1,0 +1,23 @@
+a = 0
+b = 0
+
+def ab():
+    global a, b  # Declare 'a' and 'b' as global variables
+
+    ce_count = 2
+    ce_sl_count = 2
+    ce_avg_sum = 100
+    ce_sl_sum = 50
+
+    if ce_count == 1 and ce_sl_count == 1:
+        sl1 = ce_avg_sum - ce_sl_sum
+        a = sl1
+
+    elif ce_count == 2 and ce_sl_count == 2:
+        sl2 = ce_avg_sum - ce_sl_sum
+        b = sl2
+
+    print(a)
+    print(b)
+
+ab()

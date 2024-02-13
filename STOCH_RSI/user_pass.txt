@@ -1,0 +1,3 @@
+tcs_high: 500.75
+tcs_low: 434.65
+tcs_close: 435.35

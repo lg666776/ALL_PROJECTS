@@ -1,0 +1,574 @@
+from NorenRestApiPy.NorenApi import NorenApi
+from datetime import datetime
+from datetime import datetime, timedelta
+import pandas as pd
+import pickle
+import os
+import time
+import threading
+import datetime
+import math
+import time
+import schedule
+
+global api
+
+# Credentials
+user = open('user.txt', 'r').read()
+pwd = open('pass.txt', 'r').read()
+
+# Get the current date and time
+current_date_time = datetime.datetime.now()
+# Extract the month from the current date
+current_month_abbrev = current_date_time.strftime("%b").upper()
+
+print("Current Month:", current_month_abbrev)
+
+
+def login():
+    class ShoonyaApiPy(NorenApi):
+        def __init__(self):
+            NorenApi.__init__(self, host='https://api.shoonya.com/NorenWClientTP/',
+                              websocket='wss://api.shoonya.com/NorenWSTP/')
+
+    api = ShoonyaApiPy()
+    # Make the API call
+    # res = api.login(userid=user, password=pwd, twoFA=otp, vendor_code=vc, api_secret=app_key, imei=imei)
+    session_token = open('session_token.txt', 'r').read()
+    api.set_session(user, pwd, session_token)
+    # Get the current time
+    current_time = datetime.datetime.now().time()
+    print('NIFTY LOGIN SUCESSFULL')
+    print('LOGIN TIME', current_time)
+    return api
+
+
+if __name__ == '__main__':
+    api = login()
+
+qty = 0
+high_point = 0
+low_point = 0
+premimum = 0
+ce_tsym = None
+pe_tsym = None
+nifty_close = 0
+total_count = 0
+total_buy_count = 0 
+total_sell_count = 0
+
+
+CE_BUY_ORDER_DETAILS_FILE = 'ce_buy_order_details.pickle'
+PE_SELL_ORDER_DETAILS_FILE = 'pe_sell_order_details.pickle'
+CE_BUY_EXIT_ORDER_DETAILS_FILE = 'ce_buy_exit_order.pickle'
+PE_SELL_EXIT_ORDER_DETAILS_FILE = 'pe_sell_exit_order.pickle'
+
+
+
+PE_ORDER_DETAILS_FILE = 'pe_order_details.pickle'
+CE_SL_ORDER_DETAILS_FILE = 'ce_sl_order.pickle'
+CE_TGT_ORDER_DETAILS_FILE = 'ce_tgt_order.pickle'
+CE_EXIT_ORDER_DETAILS_FILE = 'ce_exit_order.pickle'
+PE_SL_ORDER_DETAILS_FILE = 'pe_sl_order.pickle'
+PE_TGT_ORDER_DETAILS_FILE = 'pe_tgt_order.pickle'
+PE_EXIT_ORDER_DETAILS_FILE = 'pe_exit_order.pickle'
+
+def load_data(file_path, initialize_empty_dict=False, initialize_empty_set=False, max_retries=100, retry_delay=3):
+    for retry in range(max_retries):
+        try:
+            if os.path.exists(file_path):
+                with open(file_path, 'rb') as file:
+                    return pickle.load(file)
+        except (FileNotFoundError, pickle.UnpicklingError) as e:
+
+            if retry < max_retries - 1:
+                time.sleep(retry_delay)
+    if initialize_empty_dict:
+        return {}
+    elif initialize_empty_set:
+        return set()
+    
+
+ce_buy_order_details: dict = load_data(CE_BUY_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+pe_sell_order_details: dict = load_data(PE_SELL_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+ce_buy_exit_order_details: dict = load_data(CE_BUY_EXIT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+pe_sell_exit_order_details: dict = load_data(PE_SELL_EXIT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+
+
+pe_order_details: dict = load_data(PE_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+ce_sl_order_details: dict = load_data(CE_SL_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+ce_tgt_order_details: dict = load_data(CE_TGT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+ce_exit_order_details: dict = load_data(CE_EXIT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+pe_sl_order_details: dict = load_data(PE_SL_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+pe_tgt_order_details: dict = load_data(PE_TGT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+pe_exit_order_details: dict = load_data(PE_EXIT_ORDER_DETAILS_FILE, initialize_empty_dict=True)
+
+
+
+
+def save_data(file_path, data):
+    with open(file_path, 'wb') as file:
+        pickle.dump(data, file)
+
+
+
+def all_values():
+    global high_point, low_point, premimum
+    try:
+        with open('nifty_high.txt', 'r') as file:
+            high_point = file.read()
+            high_point = float(high_point)
+    except FileNotFoundError as e:
+        print(f"Error reading nifty_high.txt: {e}")
+    
+    try:
+        with open('nifty_low.txt', 'r') as file:
+            low_point = file.read()
+            low_point = float(low_point)
+    except FileNotFoundError as e:
+        print(f"Error reading nifty_low.txt: {e}")
+
+    try:
+        with open('premimum.txt', 'r') as file:
+            premimum = file.read()
+            premimum = float(premimum)
+            print(premimum)
+    except FileNotFoundError as e:
+        print(f"Error reading premimum.txt: {e}")
+
+
+def option_chain():
+    global ce_tsym, pe_tsym, premimum, ce_tsym, pe_tsym, quit
+
+    qty = 50
+
+    if premimum:
+        premimum = premimum
+        print('premimin', premimum)
+    else: 
+        premimum = 30
+        print('premimin', premimum)
+
+    ret = api.get_quotes(exchange='NSE', token='26000')
+    ltp = ret.get("lp")
+    ltp = float(ltp)  
+
+    strike = int(round(ltp/50,0)*50)
+    month = current_month_abbrev
+    atm = strike
+
+    ce_txt = f'NIFTY {month} {atm} CE'
+    pe_txt = f'NIFTY {month} {atm} PE'
+
+    # Search for CE options
+    ce_res = api.searchscrip('NFO', ce_txt)
+    ce_df = pd.DataFrame(ce_res['values'])
+
+    # Search for PE options
+    pe_res = api.searchscrip('NFO', pe_txt)
+    pe_df = pd.DataFrame(pe_res['values'])
+    
+    # Extract the 'weekly' value from the first row
+    ce_tsym = ce_df.loc[0, 'tsym']
+    pe_tsym = pe_df.loc[0, 'tsym']
+
+    # Filter and sort CE DataFrame for the value in first_row_weekly
+    ce_filtered_df = ce_df[ce_df['tsym'] == ce_tsym].sort_values(by='tsym')
+    ce_tsym_values = ce_filtered_df['tsym'].tolist()
+        
+    # Filter and sort PE DataFrame for 'W1' weekly values
+    pe_filtered_df = pe_df[pe_df['tsym'] == pe_tsym].sort_values(by='tsym')
+    pe_tsym_values = pe_filtered_df['tsym'].tolist()
+
+    if ce_tsym_values:
+        ce_specific_tsym = ce_tsym_values[0]
+        print(ce_specific_tsym)
+        
+    if pe_tsym_values:
+        pe_specific_tsym = pe_tsym_values[0]
+        print(pe_specific_tsym)
+
+
+    opc = api.get_option_chain('NFO', ce_specific_tsym, atm, 2)
+    option_chain_data = opc['values']
+    option_chain_df = pd.DataFrame(option_chain_data)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+
+    pe_opc = api.get_option_chain('NFO', pe_specific_tsym, atm, 2)
+    pe_option_chain_data = pe_opc['values']
+    pe_option_chain_df = pd.DataFrame(pe_option_chain_data)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.max_rows', None)
+
+
+    ce_df = option_chain_df[option_chain_df['optt'] == 'CE']
+    close_ltp = premimum
+    strikelist = []
+    for i in ce_df.index:
+        strikeinfo = ce_df.loc[i]
+        res = api.get_quotes(exchange='NFO', token=str(strikeinfo.token))
+        lp = res.get("lp")
+        strikelist.append(res) 
+
+    pe_df = pe_option_chain_df[pe_option_chain_df['optt'] == 'PE']
+    pe_close_ltp = premimum
+    pe_strikelist = []
+    for i in pe_df.index:
+        pe_strikeinfo = pe_df.loc[i]
+        pres = api.get_quotes(exchange='NFO', token=str(pe_strikeinfo.token))
+        plp = pres.get("lp")
+        pe_strikelist.append(pres)
+    
+    strikedf = pd.DataFrame(strikelist)
+    strikedf['lp'] = pd.to_numeric(strikedf['lp'], errors='coerce')  # Convert 'lp' column to numeric
+    strikedf['diff'] = abs(strikedf['lp'] - close_ltp)
+    closest_row = strikedf.loc[strikedf['diff'].idxmin()]
+    ce_ltp = closest_row.get('lp')
+    ce_tsym = closest_row.get('tsym')
+    print(ce_tsym)
+    print(ce_ltp)
+
+
+    pestrikedf = pd.DataFrame(pe_strikelist)
+    pestrikedf['lp'] = pd.to_numeric(pestrikedf['lp'], errors='coerce')  # Convert 'lp' column to numeric
+    pestrikedf['diff'] = abs(pestrikedf['lp'] - pe_close_ltp)
+    pe_closest_row = pestrikedf.loc[pestrikedf['diff'].idxmin()]
+    pe_ltp = pe_closest_row.get('lp')
+    pe_tsym = pe_closest_row.get('tsym')
+    print(pe_tsym)
+    print(pe_ltp)
+
+
+def option_chain_calling():
+    while True:
+        # Calculate the date and time for the next minute
+        current_time = datetime.datetime.now()
+        next_minute = (current_time + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
+
+        # Calculate the seconds remaining until the next minute
+        seconds_remaining = (next_minute - current_time).total_seconds()
+
+        # Sleep for 50 seconds (or 0 seconds if less than 10 seconds remaining)
+        time.sleep(max(seconds_remaining - 10, 0))  # 10 seconds before the next minute
+
+        # Call the 'ltp' function
+        option_chain()
+    
+        # Wait for the next iteration to start (i.e., wait for the next minute)
+        while datetime.datetime.now() < next_minute:
+            time.sleep(1)
+
+
+def ce_buy_order():
+        global ce_tsym, ce_buy_order_details, qty
+        # Assuming you want the first value in the list
+        if ce_tsym:
+            ce_symbol = ce_tsym
+
+            # Place an order with the specific trading symbol
+            ret = api.place_order(buy_or_sell='B', product_type='I',
+                                  exchange='NFO', tradingsymbol=ce_symbol,
+                                  quantity=qty, discloseqty=0, price_type='MKT',
+                                  retention='DAY', remarks='ce_buy_order')
+            orderno = ret['norenordno']
+
+
+            while True:
+                order_history = api.single_order_history(orderno=orderno)
+
+                if order_history:
+                    status = order_history[0].get('status')
+
+                    if status == 'COMPLETE':
+                        tsym = order_history[0].get('tsym')
+                        
+                        if orderno not in ce_buy_order_details:
+                            ce_buy_order_details[orderno] = {
+                                'Status': 'COMPLETE',
+                                'trantype': 'B',
+                                'remarks': 'ce_buy_order',
+                                'ce_buy_tsym': tsym,
+                            }
+                            save_data(CE_BUY_ORDER_DETAILS_FILE, ce_buy_order_details)
+
+                            # Exit the loop once ce_order_details is populated
+                            break
+
+        # Return the order details dictionary
+        return ce_buy_order_details
+
+
+def pe_sell_order():
+        global pe_tsym, pe_sell_order_details, qty
+        # Assuming you want the first value in the list
+        if pe_tsym:
+            pe_symbol = pe_tsym
+
+            # Place an order with the specific trading symbol
+            ret = api.place_order(buy_or_sell='S', product_type='I',
+                                  exchange='NFO', tradingsymbol=pe_symbol,
+                                  quantity=qty, discloseqty=0, price_type='MKT',
+                                  retention='DAY', remarks='pe_sell_order')
+            orderno = ret['norenordno']
+
+            while True:
+                order_history = api.single_order_history(orderno=orderno)
+
+                if order_history:
+                    status = order_history[0].get('status')
+
+                    if status == 'COMPLETE':
+                        tsym = order_history[0].get('tsym')
+                        
+                        if orderno not in pe_sell_order_details:
+                            pe_sell_order_details[orderno] = {
+                                'Status': 'COMPLETE',
+                                'trantype': 'S',
+                                'remarks': 'pe_sell_order',
+                                'pe_sell_tsym': tsym,
+                            }
+                            save_data(PE_SELL_ORDER_DETAILS_FILE, pe_sell_order_details)
+
+                            # Exit the loop once ce_order_details is populated
+                            break
+
+        # Return the order details dictionary
+        return pe_sell_order_details
+
+
+def ce_buy_exit_order():
+    global ce_buy_order_details, ce_buy_exit_order_details, qty
+    
+    for orderno, order_info in ce_buy_order_details.items():
+        if isinstance(order_info, dict):  # Check if order_info is a dictionary
+            ce_buy_exit_symbol = order_info.get('ce_buy_tsym')
+           
+             # Place an order with the specific trading symbol
+            ret = api.place_order(buy_or_sell='S', product_type='I',
+                                  exchange='NFO', tradingsymbol=ce_buy_exit_symbol,
+                                  quantity=qty, discloseqty=0, price_type='MKT',
+                                  retention='DAY', remarks='ce_buy_exit_order')
+            
+            # Extract the orderno from the ret value
+            ce_exit_orderno = ret['norenordno']
+
+            while True:
+                order_history = api.single_order_history(orderno=ce_exit_orderno)
+
+                if order_history:
+                    status = order_history[0].get('status')
+                    
+                    if status == 'COMPLETE':
+                        if ce_exit_orderno not in ce_buy_exit_order_details:
+                            ce_buy_exit_order_details[ce_exit_orderno] = {
+                                'Status': 'COMPLETE',
+                                'trantype': 'S',  
+                                'remarks': 'ce_buy_exit_order',  
+                            }
+                            save_data(CE_BUY_EXIT_ORDER_DETAILS_FILE, ce_buy_exit_order_details)
+                            # Exit the loop once ce_order_details is populated
+                            break
+
+    # Return the order details dictionary
+    return ce_buy_exit_order_details
+
+
+def pe_sell_exit_order():
+    global pe_sell_order_details, pe_sell_exit_order_details, qty
+    
+    for orderno, order_info in pe_sell_order_details.items():
+        if isinstance(order_info, dict):  # Check if order_info is a dictionary
+            pe_sell_exit_symbol = order_info.get('pe_sell_tsym')
+           
+             # Place an order with the specific trading symbol
+            ret = api.place_order(buy_or_sell='B', product_type='I',
+                                  exchange='NFO', tradingsymbol=pe_sell_exit_symbol,
+                                  quantity=qty, discloseqty=0, price_type='MKT',
+                                  retention='DAY', remarks='pe_sell_exit_order')
+            
+            # Extract the orderno from the ret value
+            ce_exit_orderno = ret['norenordno']
+
+            while True:
+                order_history = api.single_order_history(orderno=ce_exit_orderno)
+
+                if order_history:
+                    status = order_history[0].get('status')
+                    
+                    if status == 'COMPLETE':
+                        if ce_exit_orderno not in pe_sell_exit_order_details:
+                            pe_sell_exit_order_details[ce_exit_orderno] = {
+                                'Status': 'COMPLETE',
+                                'trantype': 'S',  
+                                'remarks': 'pe_sell_exit_order',  
+                            }
+                            save_data(PE_SELL_EXIT_ORDER_DETAILS_FILE, pe_sell_exit_order_details)
+                            # Exit the loop once ce_order_details is populated
+                            break
+
+    # Return the order details dictionary
+    return pe_sell_exit_order_details
+
+
+def buy_order_place():
+    global ce_buy_order_details, pe_sell_order_details, total_count, total_buy_count, total_sell_count, nifty_close, high_point
+
+    max_retries = 2  # Maximum number of retries for placing the buy order
+    trades = 3 #Total trades
+    retries = 0  # Counter for retries
+   
+    while retries < max_retries:
+        nifty_close = float(nifty_close)
+        high_point = float(high_point)
+        if nifty_close and high_point:
+            if not ce_buy_order_details and not pe_sell_order_details:
+                current_time = datetime.datetime.now().time()
+                start_time = datetime.time(9, 36)
+                end_time = datetime.time(15, 10)
+                if start_time <= current_time <= end_time:
+                    if total_count < trades:
+                        if nifty_close > high_point:
+                            ce_buy_order_details = ce_buy_order()
+                            pe_sell_order_details = pe_sell_order()
+                            if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in ce_buy_order_details.items()):
+                                if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in pe_sell_order_details.items()):
+                                    total_buy_count += 1  # Increment the total buy count
+                                    total_count = total_buy_count + total_sell_count
+                                    print(total_count)
+                                    time.sleep(2)  
+                                else:
+                                    retries += 1
+                                    break
+  
+        time.sleep(1)  
+
+
+def buy_exit_loop():
+    global ce_buy_order_details, low_point, nifty_close, pe_sell_order_details, ce_buy_exit_order_details, pe_sell_exit_order_details
+
+    # Initialize the exit1_order_executed flag outside the loop
+    ce_order_executed = False
+
+    while True:
+        if not ce_buy_order_details and not ce_buy_exit_order_details:
+            time.sleep(1)  # Add a sleep time of 1 second before the next iteration
+            continue
+
+        current_time = datetime.datetime.now().time()
+        if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in ce_buy_order_details.items()):
+            if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in pe_sell_order_details.items()):
+                    if nifty_close and low_point:
+                        if nifty_close < low_point:
+                            ce_buy_exit_order()
+                            pe_sell_exit_order()
+                            if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in ce_buy_exit_order_details.items()):
+                                if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in pe_sell_exit_order_details.items()):
+                                    ce_buy_exit_order_details.clear()
+                                    pe_sell_exit_order_details.clear()
+                                    save_data(CE_BUY_EXIT_ORDER_DETAILS_FILE, ce_buy_exit_order_details)
+                                    save_data(PE_SELL_EXIT_ORDER_DETAILS_FILE, pe_sell_exit_order_details)
+                                    time.sleep(2)
+                                    ce_order_executed = True
+                                    break
+
+                    if current_time > datetime.time(15, 20):
+                        ce_buy_exit_order()
+                        pe_sell_exit_order()
+                        if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in ce_buy_exit_order_details.items()):
+                                if any(isinstance(order_info, dict) and order_info.get('Status') == 'COMPLETE' for orderno, order_info in pe_sell_exit_order_details.items()):
+                                    ce_buy_exit_order_details.clear()
+                                    pe_sell_exit_order_details.clear()
+                                    save_data(CE_BUY_EXIT_ORDER_DETAILS_FILE, ce_buy_exit_order_details)
+                                    save_data(PE_SELL_EXIT_ORDER_DETAILS_FILE, pe_sell_exit_order_details)
+                                    time.sleep(2)
+                                    ce_order_executed = True
+                                    break
+                         
+        time.sleep(1) 
+
+
+def get_time_series(exchange, token, start_time, end_time, interval):
+    global candle_df
+    ret = api.get_time_price_series(exchange=exchange, token=token, starttime=start_time.timestamp(),
+                                    endtime=end_time.timestamp(), interval=interval)
+    if ret:
+        candle_df = pd.DataFrame(ret, columns=['time', 'inth', 'intl', 'intc', 'into', 'intvwap'])
+        candle_df['time'] = pd.to_datetime(candle_df['time'], format='%d-%m-%Y %H:%M:%S')
+        candle_df['date'] = candle_df['time'].dt.date
+        candle_df.sort_values(['date', 'time'], inplace=True)
+        candle_df.reset_index(drop=True, inplace=True)
+        # Filter data after 9:25
+        candle_df = candle_df[candle_df['time'].dt.time >= datetime.time(hour=9, minute=15)]
+
+
+        # Update date after 15:25
+        candle_df['date'] = candle_df['time'].apply(
+            lambda x: x.date() + datetime.timedelta(days=1) if x.time() >= datetime.time(hour=15,
+                                                                                         minute=30) else x.date())
+
+        candle_df.drop(columns='date', inplace=True)
+        candle_df.set_index('time', inplace=True)
+        candle_df.reset_index()
+
+        return candle_df
+
+
+def print_candle_df(candle_df):
+    global nifty_close
+
+    # Extract the 'into' column
+    intc_column = candle_df['intc']
+
+    # Check if there are any rows in the DataFrame
+    if not intc_column.empty:
+        # Extract the latest 'into' value
+        nifty_close = intc_column.iloc[-1]
+        
+        # Print the latest 'into' value
+        print("Latest 'intc' value:", nifty_close)
+    else:
+        print("DataFrame is empty.")
+
+
+def candle_data_fetch():
+
+    # Calculate the date 5 days ago from the current date
+    current_date = datetime.datetime.today().strftime('%d-%m-%Y')
+    five_days_ago = datetime.datetime.now() - datetime.timedelta(days=1)
+    five_days = five_days_ago.strftime('%d-%m-%Y')
+
+    # Define the start and end times for the 5-minute candles
+    start_time = datetime.datetime.strptime(f'{five_days} 09:15:00', '%d-%m-%Y %H:%M:%S')
+    end_time = datetime.datetime.strptime(f'{current_date} 15:30:00', '%d-%m-%Y %H:%M:%S')
+
+    while True:
+        # Calculate the date and time for the next minute
+        current_time = datetime.datetime.now()
+        next_minute = (current_time + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
+
+        # Calculate the seconds remaining until the next minute
+        seconds_remaining = (next_minute - current_time).total_seconds()
+
+        # Sleep until the next minute
+        time.sleep(seconds_remaining)  # Sleep until the next minute + 5 seconds
+
+        # Fetch candle data (replace this with your implementation)
+        candle_df = get_time_series('NSE', '26000', start_time, end_time, interval=1)
+
+        if candle_df is not None:
+            print_candle_df(candle_df)
+
+
+if __name__ == "__main__":
+    # Create and start the threads for TCS data and Candle data
+    option_chain_thread = threading.Thread(target=option_chain_calling)
+    candle_data_fetch_thread = threading.Thread(target=candle_data_fetch)
+    buy_order_thread = threading.Thread(target=buy_order_place)
+    buy_exit_thread = threading.Thread(target=buy_exit_loop)
+
+    candle_data_fetch_thread.start()
+    option_chain_thread.start()
+    buy_order_thread.start()
+    buy_exit_thread.start()
+
