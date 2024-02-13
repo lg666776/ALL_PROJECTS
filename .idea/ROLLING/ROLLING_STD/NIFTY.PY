@@ -481,15 +481,10 @@ def entry_order_place():
                                 total_ce_count += 1  # Increment the total buy count
                                 total_pe_count += 1  # Increment the total buy count
                                 print(total_count)
-                                time.sleep(0.1)
-                                pe_sell()
-                                ce_sell()
-                                time.sleep(0.1)
-                                pe_sell()
-                                ce_sell()
-                                time.sleep(0.1)
-                                pe_sell()
-                                ce_sell()
+                                for _ in range(3):
+                                    pe_sell()
+                                    ce_sell()
+                                    time.sleep(0.1)
                             else:
                                 retries += 1
                                 break
