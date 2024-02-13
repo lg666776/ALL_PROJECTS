@@ -31,7 +31,7 @@ def login():
     api.set_session(user, pwd, session_token)
     # Get the current time
     current_time = datetime.datetime.now().time()
-    print('NIFTY LOGIN SUCESSFULL')
+    print('BANKNIFTY LOGIN SUCESSFULL')
     print('LOGIN TIME', current_time)
     return api
 
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 qty = 0
 max_ce_mtm = 0
 max_pe_mtm = 0
-nifty_ltp = 0
+bnf_ltp = 0
 ce_price = 0
 pe_price = 0
 atmstrike = 0
@@ -57,14 +57,14 @@ ce_exit_trigger = 0
 pe_exit_trigger = 0
 formatted_final_mtm = 0
 
-CE_ORDER_DETAILS_FILE = 'nf_ce_order_details.pickle'
-PE_ORDER_DETAILS_FILE = 'nf_pe_order_details.pickle'
-CE_SELL_DICT = 'nf_ce_sell_prc.pickle'
-PE_SELL_DICT = 'nf_pe_sell_prc.pickle'
-CE_EXIT_ORDER_DETAILS_FILE = 'nf_ce_exit_order.pickle'
-PE_EXIT_ORDER_DETAILS_FILE = 'nf_pe_exit_order.pickle'
-CE_MTM_DICT = 'nf_ce_mtm.pickle'
-PE_MTM_DICT = 'nf_pe_mtm.pickle'
+CE_ORDER_DETAILS_FILE = 'bnf_ce_order_details.pickle'
+PE_ORDER_DETAILS_FILE = 'bnf_pe_order_details.pickle'
+CE_SELL_DICT = 'bnf_ce_sell_prc.pickle'
+PE_SELL_DICT = 'bnf_pe_sell_prc.pickle'
+CE_EXIT_ORDER_DETAILS_FILE = 'bnf_ce_exit_order.pickle'
+PE_EXIT_ORDER_DETAILS_FILE = 'bnf_pe_exit_order.pickle'
+CE_MTM_DICT = 'bnf_ce_mtm.pickle'
+PE_MTM_DICT = 'bnf_pe_mtm.pickle'
 
 
 def load_data(file_path, initialize_empty_dict=False, initialize_empty_set=False, max_retries=100, retry_delay=3):
@@ -99,46 +99,46 @@ def save_data(file_path, data):
 
 
 def ltp_quantity_loop():
-    global nifty_ltp
+    global bnf_ltp
     while True:
         try:
-            ret = api.get_quotes(exchange='NSE', token='26000')
+            ret = api.get_quotes(exchange='NSE', token='26009')
 
             # Check if ret is not None before accessing its attributes
             if ret is not None:
                 ltp = ret.get("lp")
                 if ltp is not None:
-                    nifty_ltp = float(ltp)
-                    with open('nifty_ltp.txt', 'w') as file:
-                        file.write(str(nifty_ltp))
+                    bnf_ltp = float(ltp)
+                    with open('bnf_ltp.txt', 'w') as file:
+                        file.write(str(bnf_ltp))
                 else:
                     print("Error: 'lp' attribute is None")
-                    nifty_ltp = 0
+                    bnf_ltp = 0
             else:
                 print("Error: 'ret' is None")
-                nifty_ltp = 0
+                bnf_ltp = 0
 
         except Exception as e:
             print(f"An error occurred: {e}")
-            nifty_ltp = 0
+            bnf_ltp = 0
 
         time.sleep(1)
 
 
 def atm_loop():
-    global nifty_ltp, atmstrike, ce_tsym_values, pe_tsym_values, ce_order_details, pe_order_details, qty
+    global bnf_ltp, atmstrike, ce_tsym_values, pe_tsym_values, ce_order_details, pe_order_details, qty
 
     while True:
 
-        strike = int(round(nifty_ltp/50,0)*50)
+        strike = int(round(bnf_ltp/100,0)*100)
 
         month = 'FEB'
         atm = strike
 
-        ce_txt = f'NIFTY {month} {atm} CE'
-        pe_txt = f'NIFTY {month} {atm} PE'
+        ce_txt = f'BANKNIFTY {month} {atm} CE'
+        pe_txt = f'BANKNIFTY {month} {atm} PE'
 
-        nf_ls = 0
+        bnf_ls = 0
         ce_tsym_values = 0
         pe_tsym_values = 0
         
@@ -150,7 +150,7 @@ def atm_loop():
                 ce_filtered_df = ce_df[ce_df['tsym'] == ce_tsym].sort_values(by='tsym')
                 ce_tsym_values = ce_filtered_df['tsym'].tolist()
                 ce_token_values = ce_filtered_df['token'].tolist()
-                nf_ls = ce_filtered_df['ls'].tolist()
+                bnf_ls = ce_filtered_df['ls'].tolist()
             else:
                 print("No 'values' key found in CE options result")
         
@@ -194,11 +194,11 @@ def atm_loop():
         ce_otm = nifty_ltp + 1500
         pe_otm = nifty_ltp - 1500
         
-        ce_otm_strike = int(round(ce_otm/50,0)*50)
-        pe_otm_strike = int(round(pe_otm/50,0)*50)
+        ce_otm_strike = int(round(ce_otm/100,0)*100)
+        pe_otm_strike = int(round(pe_otm/100,0)*100)
         
-        ce_otm_txt = f'NIFTY {month} {ce_otm_strike} CE'
-        pe_otm_txt = f'NIFTY {month} {pe_otm_strike} PE'
+        ce_otm_txt = f'BANKNIFTY {month} {ce_otm_strike} CE'
+        pe_otm_txt = f'BANKNIFTY {month} {pe_otm_strike} PE'
 
         ce_otm_tsym_values = 0
         pe_otm_tsym_values = 0
@@ -247,47 +247,47 @@ def atm_loop():
             print(f"Error occurred while fetching PE otm options: {pe_general_error}")
             pe_otm_df = pd.DataFrame() 
 
-        if nf_ls:
-            lot_size = nf_ls[0]
+        if bnf_ls:
+            lot_size = bnf_ls[0]
             qty = float(lot_size) * 1
             qty = int(qty)
-            with open('nf_qty.txt', 'w') as file:
+            with open('bnf_qty.txt', 'w') as file:
                 file.write(str(qty))
         
           # Assuming you want the first value in the list
         if ce_token_values:
             ce_token = ce_token_values[0]
-            with open('nf_atm_ce_token.txt', 'w') as file:
+            with open('bnf_atm_ce_token.txt', 'w') as file:
                 file.write(ce_token)
         
         if pe_token_values:
             pe_token = pe_token_values[0]
-            with open('nf_atm_pe_token.txt', 'w') as file:
+            with open('bnf_atm_pe_token.txt', 'w') as file:
                 file.write(pe_token)
 
         # Assuming you want the first value in the list
         if ce_tsym_values:
             ce_specific_tsym = ce_tsym_values[0]
            
-            with open('nf_ce_atm.txt', 'w') as file:
+            with open('bnf_ce_atm.txt', 'w') as file:
                     file.write(ce_specific_tsym)
                 
         if pe_tsym_values:
             pe_specific_tsym = pe_tsym_values[0]
             
-            with open('nf_pe_atm.txt', 'w') as file:
+            with open('bnf_pe_atm.txt', 'w') as file:
                     file.write(pe_specific_tsym)
         
         if ce_otm_tsym_values:
             ce_otm_tsym_values = ce_otm_tsym_values[0]
            
-            with open('nf_ce_otm.txt', 'w') as file:
+            with open('bnf_ce_otm.txt', 'w') as file:
                 file.write(str(ce_otm_tsym_values))
         
         if pe_otm_tsym_values:
             pe_otm_tsym_values = pe_otm_tsym_values[0]
            
-            with open('nf_pe_otm.txt', 'w') as file:
+            with open('bnf_pe_otm.txt', 'w') as file:
                 file.write(str(pe_otm_tsym_values)) 
         
         time.sleep(1)
@@ -302,20 +302,20 @@ def exits_token_loop():
             if isinstance(order_info, dict):  
                 ce_token_str = order_info.get('ce_token', 0) 
                 
-                with open('nf_ce_token.txt', 'w') as file:
+                with open('bnf_ce_token.txt', 'w') as file:
                     file.write(ce_token_str)
                     
-                with open('nf_ce_token.txt', 'r') as file:
+                with open('bnf_ce_token.txt', 'r') as file:
                     ce_token_read = file.read()
             
         for orderno, order_info in pe_order_details.items():
             if isinstance(order_info, dict): 
                 pe_token_str = order_info.get('pe_token', 0)  
 
-                with open('nf_pe_token.txt', 'w') as file:
+                with open('bnf_pe_token.txt', 'w') as file:
                     file.write(str(pe_token_str))
 
-                with open('nf_pe_token.txt', 'r') as file:
+                with open('bnf_pe_token.txt', 'r') as file:
                     pe_token_read = file.read()
             
         time.sleep(1)
@@ -328,10 +328,10 @@ def ce_order_execute():
         ce_symbol = None
 
         try:
-            with open('nf_ce_atm.txt', 'r') as file:
+            with open('bnf_ce_atm.txt', 'r') as file:
                 ce_symbol = file.read()
         except FileNotFoundError as e:
-            print(f"Error reading nf_ce_atm.txt: {e}")
+            print(f"Error reading bnf_ce_atm.txt: {e}")
 
         # Assuming you want the first value in the list
         if ce_symbol:
@@ -416,10 +416,10 @@ def pe_order_execute():
         pe_symbol = None
 
         try:
-            with open('nf_pe_atm.txt', 'r') as file:
+            with open('bnf_pe_atm.txt', 'r') as file:
                 pe_symbol = file.read()
         except FileNotFoundError as e:
-            print(f"Error reading nf_pe_atm.txt: {e}")
+            print(f"Error reading bnf_pe_atm.txt: {e}")
 
         if pe_symbol:
             # Place an order with the specific trading symbol
@@ -545,7 +545,7 @@ def entry_order_place():
             end_time = datetime.time(15, 10)
             if start_time <= current_time <= end_time:
                 try:
-                    with open('nf_formatted_max_exit_limit.txt', 'r') as file:
+                    with open('bnf_formatted_max_exit_limit.txt', 'r') as file:
                         max_exit_limit = file.read()
                         max_exit_limit = float(max_exit_limit)
                 except FileNotFoundError:
@@ -585,13 +585,13 @@ def ltp():
     pe_token = 0
 
     try:
-        with open('nf_ce_token.txt', 'r') as file:
+        with open('bnf_ce_token.txt', 'r') as file:
             ce_token = file.read()
     except FileNotFoundError as e:
         print(f"Error reading ce_token.txt: {e}")
     
     try:
-        with open('nf_pe_token.txt', 'r') as file:
+        with open('bnf_pe_token.txt', 'r') as file:
             pe_token = file.read()
     except FileNotFoundError as e:
         print(f"Error reading pe_token.txt: {e}")
@@ -602,7 +602,7 @@ def ltp():
             ce_res = api.get_quotes(exchange='NFO', token=str(ce_token))
             ce_lp = ce_res.get("lp")
             ce_ltp = float(ce_lp)
-            with open('nf_ce_closing_prc.txt', 'w') as file:
+            with open('bnf_ce_closing_prc.txt', 'w') as file:
                 file.write(ce_lp)
         # Add additional processing or actions here if needed
         except Exception as e:
@@ -617,7 +617,7 @@ def ltp():
             pe_res = api.get_quotes(exchange='NFO', token=str(pe_token))
             pe_lp = pe_res.get("lp")
             pe_ltp = float(pe_lp)
-            with open('nf_pe_closing_prc.txt', 'w') as file:
+            with open('bnf_pe_closing_prc.txt', 'w') as file:
                 file.write(pe_lp)
         # Add additional processing or actions here if needed
         except Exception as e:
@@ -631,7 +631,7 @@ def ltp():
         if ce_ltp != 0:
             ce_mtm = ce_price - ce_ltp
             final_ce_mtm = ce_mtm * qty
-            with open('nf_ce_price.txt', 'w') as file:
+            with open('bnf_ce_price.txt', 'w') as file:
                 file.write(str(final_ce_mtm))
     
     # pe_exit_mtm
@@ -639,7 +639,7 @@ def ltp():
         if pe_ltp != 0:
             pe_mtm = pe_price - pe_ltp
             final_pe_mtm = pe_mtm * qty
-            with open('nf_pe_price.txt', 'w') as file:
+            with open('bnf_pe_price.txt', 'w') as file:
                 file.write(str(final_pe_mtm))
 
     if 1 <= total_ce_count <= 10:
@@ -683,7 +683,7 @@ def all_prints():
     global final_ce_mtm, final_pe_mtm, max_ce_mtm, max_pe_mtm, formatted_final_mtm, total_pe_count, total_ce_count, ce_price, pe_price, nifty_ltp
     while True:
         try:
-            with open('nf_ce_closing_prc.txt', 'r') as file:
+            with open('bnf_ce_closing_prc.txt', 'r') as file:
                 ce_closing_price = file.read().strip()
                 ce_closing_price = float(ce_closing_price)
         except FileNotFoundError:
@@ -691,7 +691,7 @@ def all_prints():
         except ValueError as e:
             ce_closing_price = 0
         try:
-            with open('nf_pe_closing_prc.txt', 'r') as file:
+            with open('bnf_pe_closing_prc.txt', 'r') as file:
                 pe_closing_price = file.read().strip()
                 pe_closing_price = float(pe_closing_price)
         except FileNotFoundError:
@@ -700,7 +700,7 @@ def all_prints():
             pe_closing_price = 0 
         
         try:
-            with open('nf_formatted_exit_limit.txt', 'r') as file:
+            with open('bnf_formatted_exit_limit.txt', 'r') as file:
                 exit_limit = file.read().strip()
                 exit_limit_ce = float(exit_limit)
         except FileNotFoundError:
@@ -709,7 +709,7 @@ def all_prints():
             exit_limit_ce = None
         
         try:
-            with open('nf_formatted_max_exit_limit.txt', 'r') as file:
+            with open('bnf_formatted_max_exit_limit.txt', 'r') as file:
                 max_exit_limit = file.read().strip()
                 max_exit_limit_ce = float(max_exit_limit)
         except FileNotFoundError:
@@ -747,7 +747,7 @@ def exit_order_place():
 
         if ce_order_details and pe_order_details:
             try:
-                with open('nf_formatted_exit_limit.txt', 'r') as file:
+                with open('bnf_formatted_exit_limit.txt', 'r') as file:
                     exit_limit = file.read()
                     exit_limit = float(exit_limit)
             except FileNotFoundError:
@@ -756,14 +756,14 @@ def exit_order_place():
                 exit_limit = 0 
 
             try:
-                with open('nf_ce_price.txt', 'r') as file:
+                with open('bnf_ce_price.txt', 'r') as file:
                     ce_mtm = file.read() 
                     ce_mtm = float(ce_mtm) 
             except (ValueError, FileNotFoundError) as e:
                 ce_mtm = 0   
             
             try:
-                with open('nf_pe_price.txt', 'r') as file:
+                with open('bnf_pe_price.txt', 'r') as file:
                     pe_mtm = file.read() 
                     pe_mtm = float(pe_mtm) 
             except (ValueError, FileNotFoundError) as e:
@@ -784,9 +784,9 @@ def exit_order_place():
                         save_data(CE_ORDER_DETAILS_FILE, ce_order_details)
                         save_data(CE_EXIT_ORDER_DETAILS_FILE, ce_exit_order_details)
 
-                        file_names = ['nf_ce_token.txt', 'nf_ce_closing_prc.txt', 
-                                      'nf_ce_price.txt', 'nf_pe_token.txt', 
-                                      'nf_pe_closing_prc.txt', 'nf_pe_price.txt']
+                        file_names = ['bnf_ce_token.txt', 'bnf_ce_closing_prc.txt', 
+                                      'bnf_ce_price.txt', 'bnf_pe_token.txt', 
+                                      'bnf_pe_closing_prc.txt', 'bnf_pe_price.txt']
                         
                         for file_name in file_names:
                             with open(file_name, 'w') as file:
@@ -800,7 +800,7 @@ def exit_order_place():
 
             if formatted_final_mtm != 0:
                 try:
-                    with open('nf_formatted_max_exit_limit.txt', 'r') as file:
+                    with open('bnf_formatted_max_exit_limit.txt', 'r') as file:
                         max_exit_limit = file.read()
                         max_exit_limit = float(max_exit_limit)
                 except FileNotFoundError:
@@ -821,9 +821,9 @@ def exit_order_place():
                         save_data(CE_ORDER_DETAILS_FILE, ce_order_details)
                         save_data(CE_EXIT_ORDER_DETAILS_FILE, ce_exit_order_details)
 
-                        file_names = ['nf_ce_token.txt', 'nf_ce_closing_prc.txt', 
-                                      'nf_ce_price.txt', 'nf_pe_token.txt', 
-                                      'nf_pe_closing_prc.txt', 'nf_pe_price.txt']
+                        file_names = ['bnf_ce_token.txt', 'bnf_ce_closing_prc.txt', 
+                                      'bnf_ce_price.txt', 'bnf_pe_token.txt', 
+                                      'bnf_pe_closing_prc.txt', 'bnf_pe_price.txt']
                         
                         for file_name in file_names:
                             with open(file_name, 'w') as file:
@@ -849,9 +849,9 @@ def exit_order_place():
                     save_data(CE_ORDER_DETAILS_FILE, ce_order_details)
                     save_data(CE_EXIT_ORDER_DETAILS_FILE, ce_exit_order_details)
 
-                    file_names = ['nf_ce_token.txt', 'nf_ce_closing_prc.txt', 
-                                      'nf_ce_price.txt', 'nf_pe_token.txt', 
-                                      'nf_pe_closing_prc.txt', 'nf_pe_price.txt']
+                    file_names = ['bnf_ce_token.txt', 'bnf_ce_closing_prc.txt', 
+                                  'bnf_ce_price.txt', 'bnf_pe_token.txt', 
+                                  'bnf_pe_closing_prc.txt', 'bnf_pe_price.txt']
                         
                     for file_name in file_names:
                         with open(file_name, 'w') as file:
@@ -877,20 +877,20 @@ def math_calculation():
 
     
     try:
-        with open('nf_atm_ce_token.txt', 'r') as file:
+        with open('bnf_atm_ce_token.txt', 'r') as file:
             ce_token = file.read()
     except FileNotFoundError as e:
-        print(f"Error reading nf_atm_ce_token.txt: {e}")
+        print(f"Error reading bnf_atm_ce_token.txt: {e}")
     try:
-        with open('nf_atm_pe_token.txt', 'r') as file:
+        with open('bnf_atm_pe_token.txt', 'r') as file:
             pe_token = file.read()
     except FileNotFoundError as e:
-        print(f"Error reading nf_atm_pe_token.txt: {e}")
+        print(f"Error reading bnf_atm_pe_token.txt: {e}")
     try:
-        with open('nf_qty.txt', 'r') as file:
+        with open('bnf_qty.txt', 'r') as file:
             qty = file.read()
     except FileNotFoundError as e:
-        print(f"Error reading qty.txt: {e}")
+        print(f"Error reading bnf_qty.txt: {e}")
 
           
     if ce_token:
@@ -928,20 +928,20 @@ def math_calculation():
 
     if float(formatted_exit_limit) > -750.0:
         formatted_exit_limit = '-750.00' 
-        with open('nf_formatted_exit_limit.txt', 'w') as file:
+        with open('bnf_formatted_exit_limit.txt', 'w') as file:
             file.write(formatted_exit_limit)
     else:
         formatted_exit_limit = formatted_exit_limit
-        with open('nf_formatted_exit_limit.txt', 'w') as file:
+        with open('bnf_formatted_exit_limit.txt', 'w') as file:
             file.write(formatted_exit_limit)
 
     if float(for_max_exit_limit) > -2000.0:
         for_max_exit_limit = '-2000.00' 
-        with open('nf_formatted_max_exit_limit.txt', 'w') as file:
+        with open('bnf_formatted_max_exit_limit.txt', 'w') as file:
             file.write(for_max_exit_limit)
     else:
         for_max_exit_limit = for_max_exit_limit
-        with open('nf_formatted_max_exit_limit.txt', 'w') as file:
+        with open('bnf_formatted_max_exit_limit.txt', 'w') as file:
             file.write(for_max_exit_limit)
 
 
@@ -949,21 +949,21 @@ def hedge_order_place():
     global ce_otm_symbol, pe_otm_symbol, qty
     
     try:
-        with open('nf_ce_otm.txt', 'r') as file:
+        with open('bnf_ce_otm.txt', 'r') as file:
             ce_otm_symbol = file.read()
-            with open('nf_ce_hdg_symbol.txt', 'w') as file:
+            with open('bnf_ce_hdg_symbol.txt', 'w') as file:
                 file.write(str(ce_otm_symbol))
 
     except FileNotFoundError as e:
-        print(f"Error reading nf_ce_atm.txt: {e}")
+        print(f"Error reading bnf_ce_atm.txt: {e}")
 
     try:
-        with open('nf_pe_otm.txt', 'r') as file:
+        with open('bnf_pe_otm.txt', 'r') as file:
             pe_otm_symbol = file.read()
-            with open('nf_pe_hedge_symbol.txt', 'w') as file:
+            with open('bnf_pe_hedge_symbol.txt', 'w') as file:
                 file.write(str(pe_otm_symbol))
     except FileNotFoundError as e:
-        print(f"Error reading nf_ce_atm.txt: {e}")
+        print(f"Error reading bnf_ce_atm.txt: {e}")
     
     ret = api.place_order(buy_or_sell='B', product_type='I',
                                   exchange='NFO', tradingsymbol=ce_otm_symbol,
@@ -982,15 +982,15 @@ def hedge_order_place():
 def hedge_exit_orders():
     global qty
     try:
-        with open('nf_ce_hdg_symbol.txt', 'r') as file:
+        with open('bnf_ce_hdg_symbol.txt', 'r') as file:
             ce_hdg_symbol = file.read()   
     except FileNotFoundError as e:
-        print(f"Error reading nf_ce_hdg_symbol.txt: {e}")
+        print(f"Error reading bnf_ce_hdg_symbol.txt: {e}")
     try:
-        with open('nf_pe_hedge_symbol.txt', 'r') as file:
+        with open('bnf_pe_hedge_symbol.txt', 'r') as file:
             pe_hdg_symbol = file.read()   
     except FileNotFoundError as e:
-        print(f"Error reading nf_pe_hedge_symbol.txt: {e}")
+        print(f"Error reading bnf_pe_hedge_symbol.txt: {e}")
 
     
     ret = api.place_order(buy_or_sell='S', product_type='I',
@@ -1029,8 +1029,8 @@ if __name__ == "__main__":
     mtm_calling_thread.start()
 
 schedule.every().day.at("9:16:00").do(math_calculation)
-schedule.every().day.at("09:15:10").do(hedge_order_place)
-schedule.every().day.at("15:20:00").do(hedge_exit_orders)
+#schedule.every().day.at("09:15:10").do(hedge_order_place)
+#schedule.every().day.at("15:20:00").do(hedge_exit_orders)
 
 # Run the scheduler
 while True:
